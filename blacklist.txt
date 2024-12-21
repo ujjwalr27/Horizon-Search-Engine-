@@ -1,0 +1,12 @@
+google-analytics.com
+doubleclick.net
+facebook.com/tr
+facebook.net
+quantserve.com
+scorecardresearch.com
+ads.twitter.com
+criteo.com
+taboola.com
+outbrain.com
+adnxs.com
+cloudflare.com

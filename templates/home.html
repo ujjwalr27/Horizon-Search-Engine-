@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Horizon Search - Explore Knowledge</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchForm = document.querySelector('.search-form');
+            const searchInput = searchForm.querySelector('.search-input');
+            const searchButton = searchForm.querySelector('.search-button');
+
+            searchForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const query = searchInput.value.trim();
+                
+                if (query) {
+                    window.location.href = `/search?query=${encodeURIComponent(query)}`;
+                }
+            });
+
+            // Add subtle animation to search input
+            searchInput.addEventListener('focus', function() {
+                this.classList.add('input-focus');
+            });
+
+            searchInput.addEventListener('blur', function() {
+                this.classList.remove('input-focus');
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="home-container">
+        <div class="logo-container">
+            <div class="logo">HORIZON</div>
+            <p class="tagline">Explore the depths of knowledge</p>
+        </div>
+        <form class="search-form" method="GET" action="/search">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    name="query" 
+                    class="search-input"
+                    placeholder="Search anything..." 
+                    required
+                >
+                <button type="submit" class="search-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

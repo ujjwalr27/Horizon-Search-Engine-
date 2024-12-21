@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Horizon - Search Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchForm = document.querySelector('.results-header form');
+            const searchInput = searchForm.querySelector('.search-input');
+            const markRelevantButtons = document.querySelectorAll('.mark-relevant-btn');
+
+            searchForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const query = searchInput.value.trim();
+                
+                if (query) {
+                    window.location.href = `/search?query=${encodeURIComponent(query)}`;
+                }
+            });
+
+            markRelevantButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const link = this.getAttribute('data-link');
+                    const query = '{{ query }}';
+                    
+                    fetch('/mark-relevant', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            query: query,
+                            link: link 
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            this.textContent = 'Relevance Recorded';
+                            this.disabled = true;
+                            this.classList.add('marked');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Failed to mark as relevant');
+                    });
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="results-container">
+        <div class="results-header">
+            <a href="/" class="mini-logo">HORIZON</a>
+            <form method="GET" action="/search">
+                <input 
+                    type="text" 
+                    name="query" 
+                    class="search-input" 
+                    value="{{ query }}"
+                    required
+                >
+                <button type="submit" class="compact-search-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+            </form>
+        </div>
+
+        <h1 class="results-title">Results for "{{ query }}"</h1>
+        
+        <div class="results-list">
+            {% for result in results %}
+            <div class="result-card">
+                <div class="result-header">
+                    <a href="{{ result.link }}" class="result-link" target="_blank">{{ result.title }}</a>
+                    <span class="result-rank">#{{ result.rank }}</span>
+                </div>
+                <p class="result-snippet">{{ result.snippet }}</p>
+                <div class="result-summary">
+                    <span class="summary-label">AI Summary:</span> 
+                    {{ result.rag_summary }}
+                </div>
+                <div class="result-actions">
+                    <button 
+                        data-link="{{ result.link }}"
+                        class="mark-relevant-btn"
+                    >
+                        Mark Relevance
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

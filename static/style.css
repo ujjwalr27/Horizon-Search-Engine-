@@ -1,0 +1,220 @@
+body {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
+                url('/static/ocean.jpg') no-repeat center center fixed;
+    background-size: cover;
+    color: #ffffff;
+    line-height: 1.6;
+}
+
+/* Home Page Styles */
+.home-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+.logo-container {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.logo {
+    font-size: 72px;
+    font-weight: 700;
+    text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+    color: #ffffff;
+    letter-spacing: 2px;
+}
+
+.tagline {
+    color: rgba(255,255,255,0.7);
+    font-size: 18px;
+    margin-top: 10px;
+}
+
+.search-form {
+    width: 600px;
+    max-width: 95%;
+}
+
+.search-box {
+    display: flex;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    border-radius: 40px;
+    overflow: hidden;
+}
+
+.search-input {
+    flex: 1;
+    padding: 15px 20px;
+    font-size: 16px;
+    border: none;
+    background: rgba(255,255,255,0.9);
+    transition: all 0.3s ease;
+}
+
+.search-input:focus {
+    outline: none;
+    background: white;
+    box-shadow: 0 0 15px rgba(33,150,243,0.5);
+}
+
+.search-button {
+    background: #2196f3;
+    color: white;
+    border: none;
+    padding: 0 20px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.search-button:hover {
+    background: #1976d2;
+}
+
+/* Results Page Styles */
+.results-container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 30px;
+    background: rgba(255,255,255,0.95);
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    color: #333;
+}
+
+.results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 30px;
+}
+
+.mini-logo {
+    font-size: 24px;
+    font-weight: 700;
+    color: #2196f3;
+    text-decoration: none;
+}
+
+.result-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.result-card:hover {
+    transform: translateY(-5px);
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.result-link {
+    color: #1a73e8;
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.result-rank {
+    color: #666;
+    font-size: 14px;
+    background: #f1f3f4;
+    padding: 3px 8px;
+    border-radius: 15px;
+}
+
+.result-snippet {
+    color: #555;
+    margin: 10px 0;
+}
+
+.result-summary {
+    background: rgba(33,150,243,0.05);
+    padding: 12px;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+.summary-label {
+    font-weight: 600;
+    color: #2196f3;
+    margin-right: 8px;
+}
+
+.mark-relevant-btn {
+    background: #2196f3;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.mark-relevant-btn:hover {
+    background: #1976d2;
+}
+
+.mark-relevant-btn.marked {
+    background: #4CAF50;
+    cursor: default;
+}
+
+/* Error Page Styles */
+.error-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
+                url('/static/ocean.jpg') no-repeat center center fixed;
+    background-size: cover;
+}
+
+.error-content {
+    text-align: center;
+    background: rgba(255,255,255,0.1);
+    padding: 40px;
+    border-radius: 15px;
+    max-width: 500px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.error-icon {
+    margin-bottom: 20px;
+    opacity: 0.8;
+}
+
+.error-content h1 {
+    color: #ff6b6b;
+    margin-bottom: 15px;
+}
+
+.back-home-btn {
+    display: inline-block;
+    background: #2196f3;
+    color: white;
+    text-decoration: none;
+    padding: 10px 25px;
+    border-radius: 30px;
+    transition: background 0.3s ease;
+}
+
+.back-home-btn:hover {
+    background: #1976d2;
+}

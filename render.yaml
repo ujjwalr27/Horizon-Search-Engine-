@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: horizon-search
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:main --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60 --worker-class gthread --worker-tmp-dir /dev/shm
+    envVars:
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: horizon-search-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: horizon-search-redis
+          property: port
+    autoDeploy: false
+    scaling:
+      minInstances: 1
+      maxInstances: 1
+      targetMemoryPercent: 80
+    plan: starter
+
+  - type: redis
+    name: horizon-search-redis
+    ipAllowList: []
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    maxmemory: 256

@@ -1,0 +1,14 @@
+.env
+*.pt
+*.safetensors
+*.h5
+*.onnx
+__pycache__/
+*.pyc
+.cache/
+*.log
+*.csv
+*.json
+*.pkl
+/venv/
+myenv/
