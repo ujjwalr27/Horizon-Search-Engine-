@@ -3,6 +3,7 @@ import json
 import time
 import asyncio
 import concurrent.futures
+import hashlib
 from typing import Dict, Any, Optional
 from logging_config import get_module_logger
 
@@ -32,13 +33,14 @@ class RedisAdaptiveCache:
             raise
 
     def _generate_key(self, query: str) -> str:
-        return f"s:{hash(query)}"  # Shortened key prefix
+        return f"s:{hashlib.md5(query.encode('utf-8')).hexdigest()}"
 
-    def put(self, query: str,  Any, expiry: Optional[int] = None) -> bool:
+    def put(self, query: str, data: Any, expiry: Optional[int] = None) -> bool:
         try:
-            key = self._generate_key(query)
-            if not 
+            if data is None:
                 return False
+
+            key = self._generate_key(query)
             
             # Limit data size
             if isinstance(data, list) and len(data) > 10:
