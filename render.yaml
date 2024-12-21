@@ -1,9 +1,12 @@
+
 services:
   - type: web
     name: Horizon-search
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:main --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60 --worker-class gthread --worker-tmp-dir /dev/shm
+    buildCommand: |
+      pip install -r requirements.txt
+      python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+    startCommand: gunicorn app:main --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 30 --worker-class gthread --worker-tmp-dir /dev/shm
     envVars:
       - key: REDIS_HOST
         fromService:
@@ -15,16 +18,18 @@ services:
           type: redis
           name: horizon-search-redis
           property: port
+      - key: PYTHONUNBUFFERED
+        value: "true"
     autoDeploy: false
     scaling:
       minInstances: 1
       maxInstances: 1
-      targetMemoryPercent: 80
-    plan: starter
+      targetMemoryPercent: 70
+    plan: free
 
   - type: redis
     name: horizon-search-redis
     ipAllowList: []
     plan: free
     maxmemoryPolicy: allkeys-lru
-    maxmemory: 256
+    maxmemory: 100

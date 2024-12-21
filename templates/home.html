@@ -3,52 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <title>Horizon Search - Explore Knowledge</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchForm = document.querySelector('.search-form');
-            const searchInput = searchForm.querySelector('.search-input');
-            const searchButton = searchForm.querySelector('.search-button');
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #475569;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.9)), 
+                        url('/static/ocean.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: #ffffff;
+            display: grid;
+            place-items: center;
+        }
 
-            searchForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const query = searchInput.value.trim();
-                
-                if (query) {
-                    window.location.href = `/search?query=${encodeURIComponent(query)}`;
-                }
-            });
+        .home-container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 42rem;
+            width: 90%;
+            animation: fadeIn 0.8s ease-out;
+        }
 
-            // Add subtle animation to search input
-            searchInput.addEventListener('focus', function() {
-                this.classList.add('input-focus');
-            });
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
-            searchInput.addEventListener('blur', function() {
-                this.classList.remove('input-focus');
-            });
-        });
-    </script>
+        .logo {
+            font-size: 5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #2563eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(37, 99, 235, 0.2);
+            margin-bottom: 1rem;
+            letter-spacing: 4px;
+        }
+
+        .tagline {
+            color: rgba(255,255,255,0.9);
+            font-size: 1.25rem;
+            margin-bottom: 3rem;
+        }
+
+        .search-form {
+            max-width: 36rem;
+            margin: 0 auto;
+        }
+
+        .search-box {
+            display: flex;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 9999px;
+            padding: 0.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transition: transform 0.3s ease;
+        }
+
+        .search-box:focus-within {
+            transform: translateY(-2px);
+            box-shadow: 0 25px 50px -12px rgba(37, 99, 235, 0.25);
+        }
+
+        .search-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: white;
+            padding: 1rem 1.5rem;
+            font-size: 1.1rem;
+            outline: none;
+        }
+
+        .search-input::placeholder {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .search-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-button:hover {
+            background: #1d4ed8;
+            transform: scale(1.05);
+        }
+
+        .search-button svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        @media (max-width: 640px) {
+            .logo { font-size: 3rem; }
+            .tagline { font-size: 1rem; }
+        }
+    </style>
 </head>
 <body>
     <div class="home-container">
-        <div class="logo-container">
-            <div class="logo">HORIZON</div>
-            <p class="tagline">Explore the depths of knowledge</p>
-        </div>
+        <div class="logo">HORIZON</div>
+        <p class="tagline">Explore the depths of knowledge with AI-powered search</p>
         <form class="search-form" method="GET" action="/search">
             <div class="search-box">
                 <input 
                     type="text" 
                     name="query" 
                     class="search-input"
-                    placeholder="Search anything..." 
+                    placeholder="What would you like to discover?" 
                     required
+                    autocomplete="off"
                 >
                 <button type="submit" class="search-button">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>

@@ -3,51 +3,295 @@
 <head>
     <meta charset="UTF-8">
     <title>Horizon - Search Results</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #475569;
+            --surface: #ffffff;
+            --text: #1f2937;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.95)), 
+                        url('/static/ocean.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text);
+        }
+
+        .results-container {
+            max-width: 64rem;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 3rem;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            animation: slideDown 0.5s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+            letter-spacing: 2px;
+        }
+
+        .search-form {
+            flex: 1;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .search-input {
+            flex: 1;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 9999px;
+            padding: 0.75rem 1.5rem;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            background: rgba(255,255,255,0.3);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+        }
+
+        .search-input::placeholder {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .search-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-button:hover {
+            background: #1d4ed8;
+            transform: scale(1.05);
+        }
+
+        .results-stats {
+            color: white;
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out forwards;
+            animation-delay: 0.3s;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .results-grid {
+            display: grid;
+            gap: 1.5rem;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out forwards;
+            animation-delay: 0.5s;
+        }
+
+        .result-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.2);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .result-title {
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: 600;
+            line-height: 1.4;
+            transition: color 0.2s;
+        }
+
+        .result-title:hover {
+            color: #1d4ed8;
+        }
+
+        .result-rank {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .result-meta {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            color: var(--secondary);
+            font-size: 0.875rem;
+        }
+
+        .result-snippet {
+            color: var(--text);
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        .result-summary {
+            background: rgba(37, 99, 235, 0.1);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            transition: background-color 0.2s;
+        }
+
+        .result-summary:hover {
+            background: rgba(37, 99, 235, 0.15);
+        }
+
+        .summary-label {
+            color: var(--primary);
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .action-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .action-button:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+
+        .action-button.marked {
+            background: #10b981;
+            cursor: default;
+        }
+
+        .action-button svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .semantic-score {
+            color: var(--secondary);
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem;
+            }
+            
+            .search-form {
+                width: 100%;
+            }
+            
+            .results-container {
+                padding: 1rem;
+            }
+            
+            .result-header {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .result-rank {
+                align-self: flex-start;
+            }
+        }
+    </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const searchForm = document.querySelector('.results-header form');
-            const searchInput = searchForm.querySelector('.search-input');
-            const markRelevantButtons = document.querySelectorAll('.mark-relevant-btn');
-
-            searchForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const query = searchInput.value.trim();
-                
-                if (query) {
-                    window.location.href = `/search?query=${encodeURIComponent(query)}`;
-                }
-            });
-
-            markRelevantButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const link = this.getAttribute('data-link');
-                    const query = '{{ query }}';
+            // Handle relevance marking
+            document.querySelectorAll('.mark-relevant-btn').forEach(button => {
+                button.addEventListener('click', async function() {
+                    const link = this.dataset.link;
+                    const query = this.dataset.query;
                     
-                    fetch('/mark-relevant', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ 
-                            query: query,
-                            link: link 
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
+                    try {
+                        const response = await fetch('/mark-relevant', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ query, link })
+                        });
+                        
+                        const data = await response.json();
+                        
                         if (data.status === 'success') {
-                            this.textContent = 'Relevance Recorded';
-                            this.disabled = true;
                             this.classList.add('marked');
+                            this.innerHTML = `
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                Marked as Relevant
+                            `;
+                            this.disabled = true;
                         }
-                    })
-                    .catch(error => {
+                    } catch (error) {
                         console.error('Error:', error);
                         alert('Failed to mark as relevant');
-                    });
+                    }
                 });
             });
         });
@@ -55,48 +299,69 @@
 </head>
 <body>
     <div class="results-container">
-        <div class="results-header">
-            <a href="/" class="mini-logo">HORIZON</a>
-            <form method="GET" action="/search">
+        <header class="header">
+            <a href="/" class="logo">HORIZON</a>
+            <form class="search-form" method="GET" action="/search">
                 <input 
                     type="text" 
                     name="query" 
                     class="search-input" 
                     value="{{ query }}"
                     required
+                    autocomplete="off"
+                    placeholder="Search again..."
                 >
-                <button type="submit" class="compact-search-btn">
+                <button type="submit" class="search-button">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
                 </button>
             </form>
+        </header>
+
+        <div class="results-stats">
+            Found {{ results|length }} results for "{{ query }}"
         </div>
 
-        <h1 class="results-title">Results for "{{ query }}"</h1>
-        
-        <div class="results-list">
+        <div class="results-grid">
             {% for result in results %}
-            <div class="result-card">
+            <article class="result-card">
                 <div class="result-header">
-                    <a href="{{ result.link }}" class="result-link" target="_blank">{{ result.title }}</a>
+                    <a href="{{ result.link }}" class="result-title" target="_blank" rel="noopener">
+                        {{ result.title }}
+                    </a>
                     <span class="result-rank">#{{ result.rank }}</span>
                 </div>
-                <p class="result-snippet">{{ result.snippet }}</p>
-                <div class="result-summary">
-                    <span class="summary-label">AI Summary:</span> 
-                    {{ result.rag_summary }}
+                
+                <div class="result-meta">
+                    <span class="semantic-score">
+                        ML Score: {{ "%.2f"|format(result.ml_rank) }}
+                    </span>
                 </div>
-                <div class="result-actions">
+
+                <p class="result-snippet">{{ result.snippet }}</p>
+
+                {% if result.rag_summary %}
+                <div class="result-summary">
+                    <span class="summary-label">AI Summary:</span>
+                    <p>{{ result.rag_summary }}</p>
+                </div>
+                {% endif %}
+
+                <div class="actions">
                     <button 
+                        class="action-button mark-relevant-btn"
                         data-link="{{ result.link }}"
-                        class="mark-relevant-btn"
+                        data-query="{{ query }}"
                     >
-                        Mark Relevance
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                        </svg>
+                        Mark as Relevant
                     </button>
                 </div>
-            </div>
+            </article>
             {% endfor %}
         </div>
     </div>

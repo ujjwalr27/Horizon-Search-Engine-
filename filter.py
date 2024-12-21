@@ -3,132 +3,70 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from concurrent.futures import ThreadPoolExecutor
-import logging
-from functools import lru_cache
+from typing import Set, Dict, Any
+from logging_config import get_module_logger
 
-class AdvancedFilter:
-    def __init__(self, results, logger=None):
+class OptimizedFilter:
+    def __init__(self, results: pd.DataFrame):
         self.filtered = results.copy()
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = get_module_logger('filter')
         self.blacklist_domains = self._load_blacklist()
 
-    def _load_blacklist(self, blacklist_path='blacklist.txt'):
-        """
-        Load and cache blacklist domains
-        """
+    def _load_blacklist(self, blacklist_path='blacklist.txt') -> Set[str]:
+        """Load blacklist with error handling"""
         try:
             with open(blacklist_path, 'r') as f:
-                return set(domain.strip() for domain in f.readlines() if domain.strip())
-        except FileNotFoundError:
-            self.logger.warning(f"Blacklist file not found: {blacklist_path}")
+                return {domain.strip() for domain in f if domain.strip()}
+        except Exception as e:
+            self.logger.error(f"Blacklist loading error: {e}")
             return set()
 
-    @lru_cache(maxsize=1000)
-    def extract_url_details(self, url):
-        """
-        Extract and cache URL details with memoization
-        """
+    def _extract_domain(self, url: str) -> str:
+        """Extract domain from URL"""
         try:
-            parsed_url = urlparse(url)
-            return {
-                'domain': parsed_url.hostname,
-                'path_length': len(parsed_url.path),
-                'is_tracked_domain': parsed_url.hostname in self.blacklist_domains
-            }
-        except Exception as e:
-            self.logger.error(f"URL parsing error: {e}")
-            return {'domain': None, 'path_length': 0, 'is_tracked_domain': False}
+            return urlparse(url).netloc
+        except Exception:
+            return ""
 
-    async def async_extract_page_details(self, html):
-        """
-        Asynchronous page detail extraction with robust error handling
-        """
+    def _basic_content_analysis(self, html: str) -> Dict[str, Any]:
+        """Simplified content analysis"""
         try:
             soup = BeautifulSoup(html, "html.parser")
-            
-            # Content analysis
-            text_content = soup.get_text(separator=' ', strip=True)
-            word_count = len(text_content.split())
-            
-            # Link and script analysis
-            external_links = [
-                link.get('href') for link in soup.find_all('a', href=True)
-                if not link.get('href', '').startswith('#')
-            ]
-            
-            scripts = [
-                script.get('src') for script in soup.find_all('script', src=True)
-            ]
-            
+            text = soup.get_text(separator=' ', strip=True)
             return {
-                'word_count': word_count,
-                'external_link_count': len(external_links),
-                'script_count': len(scripts)
+                'word_count': len(text.split()),
+                'link_count': len(soup.find_all('a', href=True))
             }
         except Exception as e:
-            self.logger.error(f"Page extraction error: {e}")
-            return {'word_count': 0, 'external_link_count': 0, 'script_count': 0}
+            self.logger.error(f"Content analysis error: {e}")
+            return {'word_count': 0, 'link_count': 0}
 
-    async def parallel_page_analysis(self):
-        """
-        Perform parallel page analysis using asyncio
-        """
-        page_details = []
-        
-        async def process_page(html):
-            return await self.async_extract_page_details(html)
-        
-        tasks = [process_page(html) for html in self.filtered['html']]
-        page_details = await asyncio.gather(*tasks)
-        
-        return pd.DataFrame(page_details)
-
-    def compute_content_score(self, page_details):
-        """
-        Advanced content scoring mechanism
-        """
-        word_count_score = np.log(page_details['word_count'] + 1)
-        link_score = -0.5 * page_details['external_link_count']
-        script_score = -0.3 * page_details['script_count']
-        
-        return word_count_score + link_score + script_score
-
-    async def filter(self, word_count_threshold=50):
-        """
-        Comprehensive asynchronous filtering
-        """
+    async def filter(self, min_words: int = 50) -> pd.DataFrame:
+        """Optimized filtering process"""
         try:
-            # Parallel page details extraction
-            page_details = await self.parallel_page_analysis()
+            # Filter blacklisted domains
+            domains = self.filtered['link'].apply(self._extract_domain)
+            self.filtered = self.filtered[~domains.isin(self.blacklist_domains)].copy()
+
+            # Basic content filtering
+            content_scores = []
+            for html in self.filtered['html']:
+                analysis = self._basic_content_analysis(html)
+                score = analysis['word_count'] / max(1, analysis['link_count'])
+                content_scores.append(score)
+
+            self.filtered['content_score'] = content_scores
             
-            # Compute content scores
-            self.filtered['content_score'] = self.compute_content_score(page_details)
-            
-            # Filter based on content score and word count
-            valid_content_mask = page_details['word_count'] >= word_count_threshold
-            self.filtered.loc[~valid_content_mask, 'final_rank'] += 10  # Penalize low-content pages
-            
-            # Final ranking computation
-            self.filtered['final_rank'] = (
-                self.filtered['rank'] * 0.5 +  # Original ranking weight
-                self.filtered['content_score'] * 0.3 +  # Content score weight
-                page_details['external_link_count'] * 0.2  # External links influence
-            )
-            
-            # Sort by final rank
-            self.filtered = self.filtered.sort_values('final_rank', ascending=True)
-            
-            return self.filtered
-        
-        except Exception as e:
-            self.logger.error(f"Filtering process error: {e}")
+            # Apply minimum word count filter
+            valid_content = self.filtered['content_score'] >= min_words
+            self.filtered = self.filtered[valid_content].copy()
+
+            # Update ranking
+            if not self.filtered.empty:
+                self.filtered['final_rank'] = range(1, len(self.filtered) + 1)
+
             return self.filtered
 
-# Utility functions for external use
-def load_blacklist_domains(path='blacklist.txt'):
-    """
-    Load blacklist domains for external use
-    """
-    with open(path, 'r') as f:
-        return set(domain.strip() for domain in f.readlines() if domain.strip())
+        except Exception as e:
+            self.logger.error(f"Filtering error: {e}")
+            return self.filtered

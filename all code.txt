@@ -1,0 +1,794 @@
+import os
+import sys
+import traceback
+import asyncio
+from flask import Flask, request, jsonify, render_template, redirect, url_for
+from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Import custom modules with logging
+from logging_config import setup_logging, get_module_logger
+from search import AdvancedSearch
+from storage import DBStorage
+from filter import AdvancedFilter
+from ml_ranking import AdvancedMLRanker
+from adaptive_cache import RedisAdaptiveCache
+from rag_model import AdvancedRAG
+from semantic_search import SemanticSearch
+
+# Configure logging
+logger = setup_logging()
+search_logger = get_module_logger('search')
+ml_logger = get_module_logger('ml_ranking')
+
+class HorizonSearchApp:
+    def __init__(self):
+        # Initialize Flask App
+        self.app = Flask(__name__)
+        CORS(self.app)  # Enable CORS
+
+        # Setup routes
+        self.setup_routes()
+
+        # Initialize global components
+        try:
+            self.db_storage = DBStorage()
+            self.adaptive_cache = RedisAdaptiveCache()
+            self.ml_ranker = AdvancedMLRanker()
+            self.rag_model = AdvancedRAG()
+            self.semantic_search = SemanticSearch()
+            self.advanced_search = AdvancedSearch()
+
+            # Background tasks
+            self._load_ml_model()
+            self._setup_background_tasks()
+
+            logger.info("HorizonSearchApp initialized successfully")
+        except Exception as e:
+            logger.error(f"Initialization error: {e}")
+            logger.error(traceback.format_exc())
+            raise
+
+    def setup_routes(self):
+        """
+        Setup application routes with logging
+        """
+        self.app.route('/', methods=['GET', 'POST'])(self.index)
+        self.app.route('/search', methods=['GET'])(self.search_results)
+        self.app.route('/mark-relevant', methods=['POST'])(self.mark_relevant)
+        self.app.route('/semantic-search', methods=['POST'])(self.perform_semantic_search)
+
+        self.app.errorhandler(404)(self.not_found)
+        self.app.errorhandler(500)(self.server_error)
+
+    async def _advanced_search_pipeline(self, query):
+        """
+        Comprehensive async search pipeline
+        """
+        try:
+            # Perform initial search
+            results = await self.advanced_search.search(query)
+
+            # Apply advanced filtering with logging
+            filter_obj = AdvancedFilter(results, logger=search_logger)
+            filtered_results = await filter_obj.filter()
+
+            # ML Ranking with error handling
+            try:
+                ml_ranked_results = self.ml_ranker.predict_ranking(filtered_results)
+            except Exception as e:
+                ml_logger.error(f"ML Ranking error: {e}")
+                ml_ranked_results = filtered_results
+
+            # RAG summary generation
+            final_results = ml_ranked_results.to_dict('records')
+            for result in final_results:
+                try:
+                    result['rag_summary'] = await self.rag_model.async_generate_response(
+                        query, 
+                        result.get('snippet', '')
+                    )
+                except Exception as e:
+                    search_logger.error(f"RAG summary error: {e}")
+                    result['rag_summary'] = "Summary generation failed."
+
+            return final_results
+        
+        except Exception as e:
+            search_logger.error(f"Search pipeline error: {e}")
+            search_logger.error(traceback.format_exc())
+            return []
+
+    def search_results(self):
+        """
+        Search results route with advanced async processing
+        """
+        query = request.args.get('query', '').strip()
+
+        if not query:
+            return redirect(url_for('index'))
+
+        try:
+            # Check cache first
+            cached_results = self.adaptive_cache.get(query)
+            if cached_results:
+                return render_template('results.html', query=query, results=cached_results)
+
+            # Run async search pipeline
+            final_results = asyncio.run(self._advanced_search_pipeline(query))
+
+            # Cache the results
+            self.adaptive_cache.put(query, final_results)
+
+            return render_template('results.html', query=query, results=final_results)
+
+        except Exception as e:
+            search_logger.error(f"Search route error: {e}")
+            return render_template('error.html', error=str(e)), 500
+
+    def index(self):
+        """
+        Home page route with logging
+        """
+        try:
+            if request.method == 'POST':
+                query = request.form.get('query', '').strip()
+                if query:
+                    logger.info(f"Search query received: {query}")
+                    return redirect(url_for('search_results', query=query))
+            return render_template('home.html')
+        except Exception as e:
+            logger.error(f"Index route error: {e}")
+            return render_template('error.html', error=str(e)), 500
+
+    def mark_relevant(self):
+        """
+        Mark a result as relevant
+        """
+        try:
+            data = request.get_json()
+            query = data.get('query')
+            link = data.get('link')
+
+            if not query or not link:
+                return jsonify({'status': 'error', 'message': 'Invalid request'}), 400
+
+            # Use the DBStorage to collect user feedback
+            asyncio.run(self.db_storage.collect_user_feedback(query, link, 1.0))
+
+            # Update the relevance in the database
+            asyncio.run(self.db_storage.update_relevance(query, link, 1.0))
+
+            return jsonify({'status': 'success', 'message': 'Relevance marked'})
+        except Exception as e:
+            logger.error(f"Mark relevant error: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    def perform_semantic_search(self):
+        """
+        Perform semantic search
+        """
+        try:
+            data = request.json
+            query = data.get('query', '')
+            documents = data.get('documents', [])
+
+            if not query or not documents:
+                return jsonify({"error": "Query and documents are required"}), 400
+
+            # Perform semantic search
+            similarities = self.semantic_search.semantic_search(query, documents)
+
+            return jsonify({"similarities": similarities.tolist()})
+
+        except Exception as e:
+            logger.error(f"Semantic search error: {e}")
+            return jsonify({"error": "An error occurred during semantic search", "details": str(e)}), 500
+
+    def not_found(self, error):
+        return render_template('error.html', error="Page not found"), 404
+
+    def server_error(self, error):
+        return render_template('error.html', error="Internal server error"), 500
+
+    def _load_ml_model(self):
+        """Load ML models in the background"""
+        logger.info("Loading ML models...")
+
+    def _setup_background_tasks(self):
+        """Initialize background tasks"""
+        logger.info("Setting up background tasks...")
+
+    def get_app(self):
+        """Return the Flask application instance"""
+        return self.app
+
+# Create the application instance
+app = HorizonSearchApp().get_app()
+
+# This is the WSGI application callable
+main = app
+
+if __name__ == '__main__':
+   port = int(os.getenv('PORT', 5000))
+   main.run(host='0.0.0.0', port=port)
+
+   this is my old app.py 
+
+   google-analytics.com
+doubleclick.net
+facebook.com/tr
+facebook.net
+quantserve.com
+scorecardresearch.com
+ads.twitter.com
+criteo.com
+taboola.com
+outbrain.com
+adnxs.com
+cloudflare.com this is my blacklist.txt 
+
+import asyncio
+import numpy as np
+import pandas as pd
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor
+import logging
+from functools import lru_cache
+
+class AdvancedFilter:
+    def __init__(self, results, logger=None):
+        self.filtered = results.copy()
+        self.logger = logger or logging.getLogger(__name__)
+        self.blacklist_domains = self._load_blacklist()
+
+    def _load_blacklist(self, blacklist_path='blacklist.txt'):
+        """
+        Load and cache blacklist domains
+        """
+        try:
+            with open(blacklist_path, 'r') as f:
+                return set(domain.strip() for domain in f.readlines() if domain.strip())
+        except FileNotFoundError:
+            self.logger.warning(f"Blacklist file not found: {blacklist_path}")
+            return set()
+
+    @lru_cache(maxsize=1000)
+    def extract_url_details(self, url):
+        """
+        Extract and cache URL details with memoization
+        """
+        try:
+            parsed_url = urlparse(url)
+            return {
+                'domain': parsed_url.hostname,
+                'path_length': len(parsed_url.path),
+                'is_tracked_domain': parsed_url.hostname in self.blacklist_domains
+            }
+        except Exception as e:
+            self.logger.error(f"URL parsing error: {e}")
+            return {'domain': None, 'path_length': 0, 'is_tracked_domain': False}
+
+    async def async_extract_page_details(self, html):
+        """
+        Asynchronous page detail extraction with robust error handling
+        """
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            
+            # Content analysis
+            text_content = soup.get_text(separator=' ', strip=True)
+            word_count = len(text_content.split())
+            
+            # Link and script analysis
+            external_links = [
+                link.get('href') for link in soup.find_all('a', href=True)
+                if not link.get('href', '').startswith('#')
+            ]
+            
+            scripts = [
+                script.get('src') for script in soup.find_all('script', src=True)
+            ]
+            
+            return {
+                'word_count': word_count,
+                'external_link_count': len(external_links),
+                'script_count': len(scripts)
+            }
+        except Exception as e:
+            self.logger.error(f"Page extraction error: {e}")
+            return {'word_count': 0, 'external_link_count': 0, 'script_count': 0}
+
+    async def parallel_page_analysis(self):
+        """
+        Perform parallel page analysis using asyncio
+        """
+        page_details = []
+        
+        async def process_page(html):
+            return await self.async_extract_page_details(html)
+        
+        tasks = [process_page(html) for html in self.filtered['html']]
+        page_details = await asyncio.gather(*tasks)
+        
+        return pd.DataFrame(page_details)
+
+    def compute_content_score(self, page_details):
+        """
+        Advanced content scoring mechanism
+        """
+        word_count_score = np.log(page_details['word_count'] + 1)
+        link_score = -0.5 * page_details['external_link_count']
+        script_score = -0.3 * page_details['script_count']
+        
+        return word_count_score + link_score + script_score
+
+    async def filter(self, word_count_threshold=50):
+        """
+        Comprehensive asynchronous filtering
+        """
+        try:
+            # Parallel page details extraction
+            page_details = await self.parallel_page_analysis()
+            
+            # Compute content scores
+            self.filtered['content_score'] = self.compute_content_score(page_details)
+            
+            # Filter based on content score and word count
+            valid_content_mask = page_details['word_count'] >= word_count_threshold
+            self.filtered.loc[~valid_content_mask, 'final_rank'] += 10  # Penalize low-content pages
+            
+            # Final ranking computation
+            self.filtered['final_rank'] = (
+                self.filtered['rank'] * 0.5 +  # Original ranking weight
+                self.filtered['content_score'] * 0.3 +  # Content score weight
+                page_details['external_link_count'] * 0.2  # External links influence
+            )
+            
+            # Sort by final rank
+            self.filtered = self.filtered.sort_values('final_rank', ascending=True)
+            
+            return self.filtered
+        
+        except Exception as e:
+            self.logger.error(f"Filtering process error: {e}")
+            return self.filtered
+
+# Utility functions for external use
+def load_blacklist_domains(path='blacklist.txt'):
+    """
+    Load blacklist domains for external use
+    """
+    with open(path, 'r') as f:
+        return set(domain.strip() for domain in f.readlines() if domain.strip())
+this is my filter.py 
+
+import os
+import logging
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
+
+def setup_logging(log_dir='logs', log_level=logging.INFO):
+    """
+    Setup centralized logging with rotating file handler
+    """
+    # Create logs directory if it doesn't exist
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Generate log filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join(log_dir, f'horizon_search_{timestamp}.log')
+    
+    # Configure root logger
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            # Console handler
+            logging.StreamHandler(),
+            # Rotating file handler
+            RotatingFileHandler(
+                log_file, 
+                maxBytes=10*1024*1024,  # 10 MB
+                backupCount=5
+            )
+        ]
+    )
+    
+    return logging.getLogger(__name__)
+
+# Configure loggers for specific modules
+def get_module_logger(module_name):
+    """
+    Get a module-specific logger
+    """
+    return logging.getLogger(module_name)
+this is my logging_config.py 
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.compose import ColumnTransformer
+from sklearn.metrics import mean_squared_error, r2_score
+import joblib
+import asyncio
+import concurrent.futures
+from settings import ML_MODEL_PATH
+
+class AdvancedMLRanker:
+    def __init__(self):
+        self.text_features = ['title', 'snippet']
+        self.numeric_features = ['link_length', 'title_length']
+        
+        # Advanced preprocessing pipeline
+        self.preprocessor = ColumnTransformer(
+            transformers=[
+                ('text', TfidfVectorizer(
+                    stop_words='english', 
+                    max_features=1000, 
+                    ngram_range=(1, 2)
+                ), self.text_features),
+                ('numeric', StandardScaler(), self.numeric_features)
+            ])
+        
+        # Ensemble of multiple models
+        self.model = Pipeline([
+            ('preprocessor', self.preprocessor),
+            ('regressor', RandomForestRegressor(
+                n_estimators=200, 
+                max_depth=10, 
+                random_state=42
+            ))
+        ])
+
+    def _validate_and_prepare_data(self, results):
+        """
+        Validate and prepare training data
+        """
+        results = results.copy()
+        
+        # Default handling for missing columns
+        for col in self.text_features + self.numeric_features + ['relevance']:
+            if col not in results.columns:
+                results[col] = 0 if col != 'relevance' else np.nan
+
+        # Handle missing relevance values
+        results['relevance'] = pd.to_numeric(results['relevance'], errors='coerce').fillna(0)
+        
+        # Compute additional features
+        results['link_length'] = results['link'].str.len()
+        results['title_length'] = results['title'].str.len()
+        
+        return results
+
+    def train(self, results):
+        """
+        Train ML model with advanced preprocessing
+        """
+        try:
+            results = self._validate_and_prepare_data(results)
+            
+            X = results[self.text_features + self.numeric_features]
+            y = results['relevance']
+
+            # Split data
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+
+            # Fit model
+            self.model.fit(X_train, y_train)
+
+            # Model evaluation
+            y_pred = self.model.predict(X_test)
+            print(f"Model Performance:")
+            print(f"Mean Squared Error: {mean_squared_error(y_test, y_pred)}")
+            print(f"R² Score: {r2_score(y_test, y_pred)}")
+
+            return self.model
+        except Exception as e:
+            print(f"Training error: {e}")
+            return None
+
+    async def async_train(self, results):
+        """
+        Asynchronous training wrapper
+        """
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            return await loop.run_in_executor(pool, self.train, results)
+
+    def predict_ranking(self, results):
+        """
+        Predict rankings with confidence scoring
+        """
+        try:
+            results = self._validate_and_prepare_data(results)
+            
+            # Predict probabilities for ranking
+            predictions = self.model.predict(results[self.text_features + self.numeric_features])
+            
+            # Normalize predictions
+            results['ml_rank'] = (predictions - predictions.min()) / (predictions.max() - predictions.min())
+            
+            return results
+        except Exception as e:
+            print(f"Prediction error: {e}")
+            # Fallback ranking
+            results['ml_rank'] = np.linspace(0, 1, len(results))
+            return results
+
+    def save_model(self, path=ML_MODEL_PATH):
+        """
+        Save entire model pipeline
+        """
+        joblib.dump(self.model, path)
+
+    def load_model(self, path=ML_MODEL_PATH):
+        """
+        Load entire model pipeline
+        """
+        self.model = joblib.load(path)
+ this is my ml_ranking.py 
+ import asyncio
+import aiohttp
+from concurrent.futures import ThreadPoolExecutor
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from urllib.parse import quote_plus
+from bs4 import BeautifulSoup
+import nltk
+from settings import (
+    SEARCH_URL, SEARCH_KEY, SEARCH_ID, RESULT_COUNT, 
+    MAX_WORKERS, THREAD_POOL_SIZE
+)
+from storage import DBStorage
+from semantic_search import SemanticSearch
+
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+
+class AdvancedSearch:
+    def __init__(self):
+        self.semantic_search = SemanticSearch()
+        self.stop_words = set(stopwords.words('english'))
+
+    def preprocess_query(self, query):
+        # Remove stop words and tokenize
+        tokens = word_tokenize(query.lower())
+        processed_query = ' '.join([token for token in tokens if token not in self.stop_words])
+        return processed_query
+
+    async def fetch_url(self, session, url, timeout=5):
+        try:
+            async with session.get(url, timeout=timeout) as response:
+                return await response.text()
+        except Exception as e:
+            print(f"Fetch error for {url}: {e}")
+            return ""
+
+    async def parallel_scrape(self, links):
+        async with aiohttp.ClientSession() as session:
+            tasks = [self.fetch_url(session, link) for link in links]
+            return await asyncio.gather(*tasks)
+
+    async def search_api_async(self, query, pages=3):
+        results = []
+        async with aiohttp.ClientSession() as session:
+            for i in range(pages):
+                start = i * 10 + 1
+                url = SEARCH_URL.format(
+                    key=SEARCH_KEY,
+                    cx=SEARCH_ID,
+                    query=quote_plus(query),
+                    start=start
+                )
+                async with session.get(url) as response:
+                    data = await response.json()
+                    results.extend(data.get("items", []))
+        
+        res_df = pd.DataFrame.from_dict(results)
+        res_df["rank"] = list(range(1, res_df.shape[0] + 1))
+        res_df = res_df[["link", "rank", "snippet", "title"]]
+        return res_df
+
+    async def semantic_search_ranking(self, query, results):
+        processed_query = self.preprocess_query(query)
+        results["similarity_score"] = await asyncio.to_thread(
+            self.semantic_search.batch_semantic_search, 
+            processed_query, 
+            results["snippet"].tolist()
+        )
+        results = results.sort_values("similarity_score", ascending=False)
+        results["rank"] = list(range(1, results.shape[0] + 1))
+        return results
+
+    async def search(self, query):
+        columns = ["query", "rank", "link", "title", "snippet", "html", "created", 
+                   "semantic_score", "ml_rank", "final_rank"]
+        storage = DBStorage()
+
+        # Check if query results are cached
+        stored_results = await storage.query_results(query)
+        if not stored_results.empty:
+            stored_results["created"] = pd.to_datetime(stored_results["created"])
+            return stored_results[columns]
+
+        results = await self.search_api_async(query)
+        html = await self.parallel_scrape(results["link"])
+        results["html"] = html
+        results = results[results["html"].str.len() > 0].copy()
+
+        # Semantic search ranking
+        results = await self.semantic_search_ranking(query, results)
+
+        results["query"] = query
+        results["created"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Ensure all required columns are present with default values
+        for col in ["semantic_score", "ml_rank", "final_rank"]:
+            if col not in results.columns:
+                results[col] = 0.0
+        
+        results = results[columns]
+
+        # Cache the results in the database
+        for _, row in results.iterrows():
+            await storage.insert_row(row)
+        
+        return results
+this is my search.py 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Supabase Configuration
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+
+# Search Configuration
+SEARCH_KEY = os.getenv('GOOGLE_SEARCH_KEY')
+SEARCH_ID = os.getenv('GOOGLE_SEARCH_ID')
+COUNTRY = "in"
+SEARCH_URL = "https://www.googleapis.com/customsearch/v1?key={key}&cx={cx}&q={query}&start={start}&num=10&gl=" + COUNTRY
+RESULT_COUNT = 30  # Increased for better results
+
+# Parallel Processing Configuration
+MAX_WORKERS = 10
+THREAD_POOL_SIZE = 20
+PORT = os.getenv('PORT', 5000)
+
+# Caching Configuration
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+CACHE_EXPIRY = int(os.getenv('CACHE_EXPIRY', 3600))
+LRU_CACHE_SIZE = int(os.getenv('LRU_CACHE_SIZE', 1000))
+
+# ML and AI Configuration
+ML_MODEL_PATH = 'ml_ranker.joblib'
+RAG_MODEL = 'facebook/bart-small'
+SUMMARIZATION_MODEL = 'paraphrase-MiniLM-L3-v2'
+
+# Advanced Query Preprocessing
+STOP_WORDS_FILE = 'stop_words.txt'
+this is my settings.py 
+from supabase import create_client, Client
+import pandas as pd
+from datetime import datetime
+import asyncio
+from settings import SUPABASE_URL, SUPABASE_KEY
+
+class DBStorage:
+    def __init__(self):
+        self.supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        self.setup_tables()
+
+    def setup_tables(self):
+        # Supabase tables are pre-created in the database
+        pass
+
+    async def query_results(self, query):
+        try:
+            response = self.supabase.table('results').select('*').eq('query', query).order('final_rank').execute()
+            return pd.DataFrame(response.data)
+        except Exception as e:
+            print(f"Query results error: {e}")
+            return pd.DataFrame()
+
+    async def insert_row(self, values):
+        try:
+            row_data = {
+                'query': values.get('query', ''),
+                'rank': values.get('rank', 0),
+                'link': values.get('link', ''),
+                'title': values.get('title', ''),
+                'snippet': values.get('snippet', ''),
+                'html': values.get('html', ''),
+                'created': values.get('created', datetime.utcnow().isoformat()),
+                'semantic_score': values.get('similarity_score', 0.0),
+                'ml_rank': values.get('ml_rank', 0.0),
+                'final_rank': values.get('final_rank', values.get('rank', 0))
+            }
+            
+            response = self.supabase.table('results').upsert(row_data).execute()
+            return response
+        except Exception as e:
+            print(f"Insert row error: {e}")
+
+    async def update_relevance(self, query, link, relevance):
+        try:
+            response = (
+                self.supabase.table('results')
+                .update({'relevance': relevance})
+                .eq('query', query)
+                .eq('link', link)
+                .execute()
+            )
+            return response
+        except Exception as e:
+            print(f"Relevance update error: {e}")
+
+    async def get_training_data(self):
+        try:
+            response = (
+                self.supabase.table('results')
+                .select('*')
+                .gt('relevance', 0)
+                .limit(1000)
+                .execute()
+            )
+            return pd.DataFrame(response.data)
+        except Exception as e:
+            print(f"Training data retrieval error: {e}")
+            return pd.DataFrame()
+
+    async def collect_user_feedback(self, query, link, relevance_score):
+        try:
+            feedback_data = {
+                'query': query,
+                'link': link,
+                'relevance_score': relevance_score,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            response = self.supabase.table('user_feedback').upsert(feedback_data).execute()
+            return response
+        except Exception as e:
+            print(f"Feedback collection error: {e}")
+
+    def close(self):
+        # Supabase doesn't require explicit connection closing
+        pass
+        this is my storage.py 
+
+
+        Flask==2.3.2
+Werkzeug==2.3.6
+requests==2.31.0
+pandas==2.0.2
+numpy==1.24.4
+beautifulsoup4==4.12.2
+gunicorn==21.2.0
+python-dotenv==1.0.0
+supabase==2.1.0
+redis==5.0.8
+nltk==3.8.1
+flask-cors==4.0.0
+aiohttp==3.9.1
+scikit-learn==1.3.2
+joblib==1.3.2
+bs4==0.0.1
+lxml==4.9.3
+this is my requirements.txt 
